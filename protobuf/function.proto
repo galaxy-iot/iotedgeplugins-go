@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+option go_package = "pkg/plugins/grpc";
+
+import "driverplugin.proto";
+
+package driverplugin;
+
+// multiple report events
+message EventDataSet {
+    repeated Event ReportEvents = 1;
+}
+
+message Properties {
+    DataType datatype = 1;
+    repeated string properties = 2;
+}
+
+message DeviceDataSetItem {
+    string deviceID = 1;
+    // key can be module.property or single property
+    map<string,Properties> properties = 2;
+}
+
+// history device data
+message DeviceDataSet {
+    repeated DeviceDataSetItem items = 1;
+}
+
+// dataset is the data running in the ruleengine
+// there are three types of dataset, device dataset, event dataset and raw data
+// device dataset contains the device data from devices, such as modbus device, opc device and other devices
+// event dataset contains events reported from devices
+// raw dataset is a byte array
+message DataSet {
+    oneof DataSet {
+        DeviceDataSet deviceDataSet = 1;
+        EventDataSet eventDataSet = 2;
+        bytes rawDataSet = 3;
+    }
+    int64     timestamp = 4;
+    // if ok is equals true, this data set is valid, otherwise, 
+    // this data isn't valid and error message is set to filed 'errorMessage'
+    bool      ok = 5;
+    string    errorMessage = 6;
+}
+
+// Conditions for filtering historical data
+message ObjectCondition {
+    string objectID = 1;
+    repeated string property = 2;
+    string aggregate = 3;
+    string rawSQL = 4;
+}
+
+message GeneratorRequest {
+    int64 start = 1;
+    int64 end = 2;
+    int64 interval = 3;
+    repeated ObjectCondition objectConditions = 4;
+}
+
+/*
+The function plugin is a grpc server and iotedge is the grpc client.
+Function plugin can be divided into two types: generator and processor.
+
+1) the generator function is a plugin that can generate data
+2) the processor function is a plugin that can process data
+*/ 
+service Generator {
+    // generator function
+    // query data and wait for response
+    rpc QueryData(GeneratorRequest) returns (DataSet) {}
+    // generator function
+    // subscribe data from datasources
+    rpc SubscribeData(GeneratorRequest) returns (stream DataSet) {}
+}
+
+service Processor {
+    // processor functions
+    rpc ProcessDataOnce (DataSet) returns (DataSet) {}
+    // processor functions
+    rpc ProcessDataStream (stream DataSet) returns (stream DataSet) {}
+}
